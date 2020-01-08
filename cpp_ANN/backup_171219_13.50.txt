@@ -1,0 +1,212 @@
+#include <iostream>
+#include <stdio.h>					// printf, scanf, puts, NULL 
+#include <string>					// string
+#include <stdlib.h>					// srand, rand
+#include <time.h>					// time
+#include <fstream>					// read write to file
+
+using namespace std;
+
+void intro(int training_rate, int training_loops, int training_pairs, int input_neurons, int midlayer_neurons, int output_neurons) {
+	// Introduction to the program
+	cout << "Artificial Neural Network Training Program\n" << endl;
+	cout << "Training rate set to: " << training_rate << endl;
+	cout << "Number of Training Loops: " << training_loops << endl;
+	cout << "Number of Training Pairs: " << training_pairs << endl;
+	cout << "\nThe structure of the ANN is as follows (in | hidden | out):" << endl;
+	cout << input_neurons << "\t|\t" << midlayer_neurons << "\t|\t" << output_neurons << endl;
+}
+
+void init_weights(double layer_in_mid[], double layer_mid_out[], int input_neurons, int midlayer_neurons, int output_neurons) {
+	// populates weights arrays with random numbers ( -1 < num < +1 )
+	cout << "\nThe initial weights in layer 1 are:" << endl;
+	for (int i = 0; i < (input_neurons * midlayer_neurons); i++) {
+		layer_in_mid[i] = (rand() % 201 - 100) / 100.00;
+		cout << layer_in_mid[i] << endl;
+	}
+	cout << "\nThe initial weights in layer 2 are:" << endl;
+	for (int i = 0; i < (midlayer_neurons * output_neurons); i++) {
+		layer_mid_out[i] = (rand() % 201 - 100) / 100.00;
+		cout << layer_mid_out[i] << endl;
+	}
+
+}
+
+int main() {
+	/*---------------------------------------------*/
+	/* Variables and constants					   */
+	/*---------------------------------------------*/
+	// setup conditions
+	const int N = 1;					// training rate
+	const int nTloops = 500;			// number of training loops
+	const int nPairs = 2;				// number of training pairs
+	// ANN structure
+	const int nNeurIn = 2;				// input neurons
+	const int nNeurMid = 3;				// hidden layer neurons
+	const int nNeurOut = 2;				// output neurons
+	// error log and output file
+	double ErrLog[nNeurOut + 1][nTloops] = { 0 };
+	ofstream myfile;
+	myfile.open("errorlog.txt", ios::trunc);
+
+	// arrays to store weights
+	double layer1w[nNeurIn * nNeurMid] = { 0 };
+	double layer2w[nNeurMid * nNeurOut] = { 0 };
+	/*
+	Array numbering described herein:
+	layer1w[0][0] = Weight Input1 to N1		layer2w[0][0] = Weight N1 to Output1
+	layer1w[1][0] = Weight Input2 to N1     layer2w[1][0] = Weight N2 to Output1
+	layer1w[2][0] = Weight Input3 to N1     layer2w[2][0] = Weight N3 to Output1
+	layer1w[3][0] = Weight Input1 to N2     layer2w[3][0] = Weight N1 to Output2
+	layer1w[4][0] = Weight Input2 to N2     layer2w[4][0] = Weight N2 to Output2
+	layer1w[5][0] = Weight Input3 to N2     layer2w[5][0] = Weight N3 to Output2
+	etc.
+	*/
+	// Create arrays to store iterative state of each neuron (input layer)
+	// 0: input | 1: output | 2: error	// column format
+	double NeurIn[nNeurIn][3] = { 0 };
+	double NeurMid[nNeurMid][3] = { 0 };
+	double NeurOut[nNeurOut][3] = { 0 };
+	double Target[nNeurOut] = { 0 };
+	// squishing function
+	double squish = 0.00;
+
+	/*---------------------------------------------*/
+	/* Introduction								   */
+	/*---------------------------------------------*/
+	intro(N, nTloops, nPairs, nNeurIn, nNeurMid, nNeurOut);
+
+	/*---------------------------------------------*/
+	/* Setup Initial Conditions					   */
+	/*---------------------------------------------*/
+	init_weights(layer1w, layer2w, nNeurIn, nNeurMid, nNeurOut);
+
+	/*---------------------------------------------*/
+	/* Forward Pass                                */  // potentially move into function
+	/*---------------------------------------------*/
+	for (int Tloop = 0; Tloop < nTloops; Tloop++) {
+		// Reset Neuron States
+		
+		memset(NeurIn, 0, sizeof(NeurIn));
+		memset(NeurMid, 0, sizeof(NeurMid));
+		memset(NeurOut, 0, sizeof(NeurOut));
+		memset(Target, 0, sizeof(Target));
+		/*
+		double NeurIn[nNeurIn][3] = { 0 };
+		double NeurMid[nNeurMid][3] = { 0 };
+		double NeurOut[nNeurOut][3] = { 0 };
+		double Target[nNeurOut] = { 0 };
+		*/
+		// Defining Training Pairs
+		for (int Pair = 1; Pair <= nPairs; Pair++) {
+			if (Pair == 1) {			// first training pair
+				NeurIn[0][1] = 1;
+				NeurIn[1][1] = 0;
+				Target[0] = 1;
+				Target[1] = 0;
+			}
+			else if (Pair == 2) {		// second training pair
+				NeurIn[0][1] = 0;
+				NeurIn[1][1] = 1;
+				Target[0] = 0;
+				Target[1] = 1;
+			}
+			else {						// error check
+				cout << "Error: Training Pair not defined" << endl;
+			}
+
+			// Calculates the Inputs to each mid layer neuron
+			for (int m = 0; m < nNeurMid; m++) {
+				for (int i = 0; i < nNeurIn; i++) {
+					NeurMid[m][0] += NeurIn[i][1] * layer1w[m * nNeurIn + i];
+				}
+			}
+			// Calculates the Outputs from each mid layer neuron
+			for (int m = 0; m < nNeurMid; m++) {
+				NeurMid[m][1] = 1 / (1 + exp(-NeurMid[m][0]));
+			}
+
+			// Calculates the Inputs to each output layer neuron
+			for (int o = 0; o < nNeurOut; o++) {
+				for (int m = 0; m < nNeurMid; m++) {
+					NeurOut[o][0] += NeurMid[m][1] * layer2w[o * nNeurMid + m];
+				}
+			}
+
+			// Calculates the Outputs from each output layer neuron
+			for (int o = 0; o < nNeurOut; o++) {
+				NeurOut[o][1] = 1 / (1 + exp(-NeurOut[o][0]));
+			}
+
+			//Calculates output error and populates error log
+			ErrLog[0][Tloop] = Tloop;
+			for (int o = 0; o < nNeurOut; o++) {
+				squish = ((1 - NeurOut[o][1]) * NeurOut[o][1]);
+				NeurOut[o][2] = (Target[o] - NeurOut[o][1]) * squish;
+				ErrLog[o + 1][Tloop] = NeurOut[o][2];
+			}
+			
+			/*---------------------------------------------*/
+			/* Back Propagation                            */  // potentially move into function
+			/*---------------------------------------------*/
+			// adjust layer 2 weights
+			for (int o = 0; o < nNeurOut; o++) {
+				for (int m = 0; m < nNeurMid; m++) {
+					layer2w[(o * nNeurMid) + m] += N * NeurOut[o][2] * NeurMid[m][1];
+				}
+			}
+			
+			// calculate the error in the hidden layer neurons
+			for (int m = 0; m < nNeurMid; m++) {
+				squish = ((1 - NeurMid[m][1]) * NeurMid[m][1]);
+				for (int o = 0; o < nNeurOut; o++) {
+					NeurMid[m][2] += NeurOut[o][2] * layer2w[m * nNeurOut + o] * squish;
+				}
+			}
+
+			// adjust layer 1 weights
+			for (int m = 0; m < nNeurMid; m++) {
+				for (int i = 0; i < nNeurIn; i++) {
+					layer1w[(m * nNeurIn) + i] += N * NeurMid[m][2] * NeurIn[i][1];
+				}
+			}
+		}
+	}
+	
+	/*---------------------------------------------*/
+	/* Output results							   */
+	/*---------------------------------------------*/
+	// outputs in user window
+	cout << "\nWeights have been adjusted following " << nTloops << " training loops." << endl;
+	cout << "\nThe final adjusted weights in layer 1 are:" << endl;
+	for (int i = 0; i < (nNeurIn * nNeurMid); i++) {
+		cout << layer1w[i] << endl;
+	}
+	cout << "\nThe final adjusted weights in layer 2 are:" << endl;
+	for (int i = 0; i < (nNeurMid * nNeurOut); i++) {
+		cout << layer2w[i] << endl;
+	}
+	// write error log to file
+	for (int i = 0; i < nTloops; i++) {
+		for (int j = 0; j <= nNeurOut; j++) {
+			myfile << ErrLog[j][i] << ' ';
+		}
+		myfile << endl;
+	}
+	myfile.close();
+	
+
+
+	// Create new code to test / validate code 
+	// requires: 
+	// + a single forward pass
+	// + error check
+	// + results rounding
+	// + pattern recognition
+	
+
+
+	string y;
+	getline(cin, y);
+	return 0;
+}
